@@ -583,10 +583,18 @@ public final class TerminalView extends View {
             Log.i(EmulatorDebug.LOG_TAG, "onKeyDown(keyCode=" + keyCode + ", isSystem()=" + event.isSystem() + ", event=" + event + ")");
         if (mEmulator == null) return true;
 
-        if (mClient.onKeyDown(keyCode, event, mTermSession)) {
+        boolean isLolKey = false;
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_LEFT ||
+            keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+            keyCode == KeyEvent.KEYCODE_ENTER ||
+            keyCode == KeyEvent.KEYCODE_FORWARD_DEL || keyCode == KeyEvent.KEYCODE_DEL ||
+            keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            keyCode == KeyEvent.KEYCODE_BACK) {
+            isLolKey = true;
+        } else if (mClient.onKeyDown(keyCode, event, mTermSession)) {
             invalidate();
             return true;
-        } else if (event.isSystem() && (!mClient.shouldBackButtonBeMappedToEscape() || keyCode != KeyEvent.KEYCODE_BACK)) {
+        } else if (event.isSystem()) {
             return super.onKeyDown(keyCode, event);
         } else if (event.getAction() == KeyEvent.ACTION_MULTIPLE && keyCode == KeyEvent.KEYCODE_UNKNOWN) {
             mTermSession.write(event.getCharacters());
@@ -602,8 +610,12 @@ public final class TerminalView extends View {
         if (controlDownFromEvent) keyMod |= KeyHandler.KEYMOD_CTRL;
         if (event.isAltPressed()) keyMod |= KeyHandler.KEYMOD_ALT;
         if (event.isShiftPressed()) keyMod |= KeyHandler.KEYMOD_SHIFT;
-        if (!event.isFunctionPressed() && handleKeyCode(keyCode, keyMod)) {
+        int ret = handleKeyCode(keyCode, keyMod);
+        if (!event.isFunctionPressed() && ret == 1) {
             if (LOG_KEY_EVENTS) Log.i(EmulatorDebug.LOG_TAG, "handleKeyCode() took key event");
+            return true;
+        }
+        if (isLolKey && ret != 2) {
             return true;
         }
 
@@ -703,12 +715,14 @@ public final class TerminalView extends View {
     }
 
     /** Input the specified keyCode if applicable and return if the input was consumed. */
-    public boolean handleKeyCode(int keyCode, int keyMod) {
+    public int handleKeyCode(int keyCode, int keyMod) {
         TerminalEmulator term = mTermSession.getEmulator();
-        String code = KeyHandler.getCode(keyCode, keyMod, term.isCursorKeysApplicationMode(), term.isKeypadApplicationMode());
-        if (code == null) return false;
+        String code = KeyHandler.getCode(keyCode, keyMod, term.isCursorKeysApplicationMode(),
+            term.isKeypadApplicationMode());
+        if (code == null) return 0;
+        if (code == "VU" || code == "VD") return 2;
         mTermSession.write(code);
-        return true;
+        return 1;
     }
 
     /**
